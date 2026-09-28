@@ -2,6 +2,7 @@
 #include <iostream>
 #include <print>
 #include <string>
+#include <vector>
 
 #include <sqlite3.h>
 
@@ -27,6 +28,7 @@ class sqlite_db
 public:
     int open(std::string &absolutely_path);
     int insert(data_table &data);
+    int list_all(std::vector<data_table> &out);
     int close(void);
 private:
     std::string path_;

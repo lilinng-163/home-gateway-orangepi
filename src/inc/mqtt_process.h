@@ -2,6 +2,7 @@
 #include <iostream>
 #include <print>
 #include <string>
+#include <vector>
 
 #include <mosquitto.h>
 
@@ -20,6 +21,12 @@ public:
     void recv(void);
     int exit(void);
     int change_cb(on_con_t new_on_connect, on_msg_t new_on_message);
+
+    void set_sub_topics(const std::vector<std::string> &topics)
+    {
+        sub_topics_ = topics;
+    }
+
     struct mosquitto *get_instance(void)
     {
         return this->mosq;
@@ -35,4 +42,5 @@ private:
     struct mosquitto *mosq;
     static int init_cnt;
     bool is_connect = false;
+    std::vector<std::string> sub_topics_{"home/device/sensor"};
 };

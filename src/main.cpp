@@ -5,8 +5,12 @@
 #include <cstdint>
 #include <ctime>
 #include <sstream>
+#include <cstdlib>
+#include <atomic>
 
 #include <signal.h>
+#include <sys/epoll.h>
+#include <unistd.h>
 
 #include <mosquitto.h>
 #include <nlohmann/json.hpp>
@@ -16,9 +20,12 @@ using json = nlohmann::json;
 #include "safe_queue.hpp"
 #include "mqtt_process.h"
 #include "sqlite_resp.h"
+#include "config.h"
 
 mqtt_process proc;
 sqlite_db sq;
+Config cfg;
+static std::atomic<bool> g_running{true};
 
 static void worker(void)  // 消费者线程
 {
@@ -31,6 +38,8 @@ static void worker(void)  // 消费者线程
             memset(&dt, 0, sizeof(dt));
             auto j = json::parse(payload);
             long long ts    = j.value("ts",    (long long)time(nullptr));  // 没有就用当前时间
+            dt.unix_time = ts;
+            dt.room_id   = cfg.room_id;
 
             if(j.contains("temp"))
             {
@@ -64,13 +73,38 @@ static void worker(void)  // 消费者线程
 static void console_thread(void)
 {
     std::string line;
-    while(std::getline(std::cin, line))
+    int ep = epoll_create1(0);
+    if(ep < 0)
     {
+        perror("epoll_create1");
+        return;
+    }
+    struct epoll_event ev{};
+    ev.events = EPOLLIN;
+    ev.data.fd = STDIN_FILENO;
+    if(epoll_ctl(ep, EPOLL_CTL_ADD, STDIN_FILENO, &ev) < 0)
+    {
+        perror("epoll_ctl");
+        close(ep);
+        return;
+    }
+    while(g_running)
+    {
+        struct epoll_event out;
+        int n = epoll_wait(ep, &out, 1, 200);
+        if(n <= 0)
+        {
+            continue;
+        }
+        if(!std::getline(std::cin, line))
+        {
+            break;
+        }
         if(line.empty())
         {
             continue;
         }
-        if(line == "q") // quit
+        if(line == "q")
         {
             break;
         }
@@ -81,7 +115,7 @@ static void console_thread(void)
         while(iss >> tok)
         {
             auto eq = tok.find("=");
-            if(eq == std::string::npos) // 没有找到返回的一个极大值
+            if(eq == std::string::npos)
             {
                 continue;
             }
@@ -97,11 +131,12 @@ static void console_thread(void)
             }
         }
         std::string payload = cmd.dump();
-        if(proc.publish("home/device/cmd", payload) == 0)
+        if(proc.publish(cfg.topic_cmd, payload) == 0)
         {
-            std::println("send -> home/device/cmd: {}", payload);
+            std::println("send -> {}: {}", cfg.topic_cmd, payload);
         }
     }
+    close(ep);
 }
 
 static void on_sight(int sig)
@@ -114,17 +149,22 @@ static void on_sight(int sig)
 
 int main(int argc, char **argv)
 {
+    // 读配置
+    cfg.load("../conf.json");
+    std::println("broker {}:{}  client_id={}  room={}",
+                 cfg.remote_ip, cfg.remote_port, cfg.client_id, cfg.room_id);
+
     // 开数据库 建表
     std::string path = "../home.db";
     sq.open(path);
     // mqtt 处理 + 线程
-    proc.init("opi-gateway");
-    proc.connect("47.113.149.47", 1883);
-    
+    proc.init(cfg.client_id);
+    proc.set_sub_topics({ cfg.topic_sensor });
+    proc.connect(cfg.remote_ip, cfg.remote_port);
+
     std::thread cmd_thread(console_thread);
-    cmd_thread.detach();    // 开启这个线程就不管了，因为主线程一直阻塞没时间join
     std::thread work_thread(worker);
-    
+
     // 中断退出handler
     signal(SIGINT, on_sight);
 
@@ -132,9 +172,12 @@ int main(int argc, char **argv)
     proc.recv();
 
     //exit
+    g_running = false;
     proc.get_queue().stop();
-    work_thread.join();  
+    cmd_thread.join();
+    work_thread.join();
     sq.close();
     proc.exit();
+
     return 0;
 }

@@ -13,11 +13,14 @@ void mqtt_process::on_connect(struct mosquitto *mosq, void *obj, int rc)
     auto *self = static_cast<mqtt_process *>(obj);
     if(rc != 0)
     {
-        std::println(stderr, "connect fail: {}\n", rc);
+        std::println(stderr, "connect fail: {}", rc);
         return;
     }
-    std::string topic = "home/device/sensor";
-    self->subscribe(topic);
+    for(const auto &t : self->sub_topics_)
+    {
+        mosquitto_subscribe(mosq, NULL, t.c_str(), 1);
+    }
+    std::println("connected & subscribed");
 }
 
 void mqtt_process::on_message(struct mosquitto *mosq, void *obj,
@@ -42,7 +45,7 @@ int mqtt_process::init(const std::string &name)
         std::println(stderr, "new failed");
         return -1;
     }
-    
+
     mosquitto_connect_callback_set(mosq, on_connect);
     mosquitto_message_callback_set(mosq, on_message);
     return 0;
@@ -123,7 +126,7 @@ int mqtt_process::change_cb(on_con_t new_on_connect, on_msg_t new_on_message)
         return -1;
     }
     return 0;
-}   
+}
 
 int mqtt_process::exit(void)
 {
@@ -135,4 +138,3 @@ int mqtt_process::exit(void)
     }
     return 0;
 }
-
