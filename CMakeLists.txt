@@ -11,7 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(${CMAKE_PROJECT_NAME})
 
-set(src src/main.cpp)
+set(src src/main.cpp src/src/sqlite_resp.cpp src/src/mqtt_process.cpp)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${src})
 
 target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC src/inc)
