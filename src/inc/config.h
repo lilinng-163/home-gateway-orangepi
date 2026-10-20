@@ -9,6 +9,7 @@ struct Config
     int         room_id      = 1;
     std::string topic_sensor = "home/device/sensor";
     std::string topic_cmd    = "home/device/cmd";
-
+    std::string mqtt_username;
+    std::string mqtt_userpassword;
     int load(const std::string &path);
 };

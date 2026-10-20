@@ -6,26 +6,24 @@
 
 #include <mosquitto.h>
 
+#include "config.h"
 #include "safe_queue.hpp"
 
 using on_con_t = void(*)(struct mosquitto *, void *, int);
 using on_msg_t = void(*)(struct mosquitto *, void *, const struct mosquitto_message *);
 
+using topics_vec = std::vector<std::string>;
+
 class mqtt_process
 {
 public:
     int init(const std::string &name);
-    int connect(const std::string &ip, const int port);
-    int subscribe(const std::string &topic);
+    int connect(const std::string &ip, const int port, std::string mqtt_username, std::string mqtt_userpassword);
+    int subscribe(const topics_vec &topics);
     int publish(const std::string &topic, const std::string &payload);
     void recv(void);
     int exit(void);
     int change_cb(on_con_t new_on_connect, on_msg_t new_on_message);
-
-    void set_sub_topics(const std::vector<std::string> &topics)
-    {
-        sub_topics_ = topics;
-    }
 
     struct mosquitto *get_instance(void)
     {
@@ -39,8 +37,8 @@ private:
     static void on_connect(struct mosquitto *mosq, void *obj, int rc);
     static void on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_message *msg);
     SafeQueue g_queue;
-    struct mosquitto *mosq;
+    struct mosquitto *mosq = nullptr;
     static int init_cnt;
     bool is_connect = false;
-    std::vector<std::string> sub_topics_{"home/device/sensor"};
+    topics_vec topics_;
 };

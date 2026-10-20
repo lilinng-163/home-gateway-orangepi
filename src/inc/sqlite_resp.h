@@ -6,8 +6,13 @@
 
 #include <sqlite3.h>
 
+#include "device_report.h"
+#include "config.h"
+#include "mqtt_process.h"
+
 typedef struct
 {
+    char *version;
     int id;
     long long unix_time;
     int room_id;    // 房间号 下面的字段根据需要取舍
@@ -28,9 +33,11 @@ class sqlite_db
 public:
     int open(std::string &absolutely_path);
     int insert(data_table &data);
+    int insert_report(const device_report &report);
     int list_all(std::vector<data_table> &out);
     int close(void);
 private:
+    int create_report_tables(void);
     std::string path_;
-    sqlite3 *db_;
+    sqlite3 *db_ = nullptr;
 };

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <print>
 #include <string>
+#include <cstring>
 
 #include <mosquitto.h>
 
@@ -16,20 +17,34 @@ void mqtt_process::on_connect(struct mosquitto *mosq, void *obj, int rc)
         std::println(stderr, "connect fail: {}", rc);
         return;
     }
-    for(const auto &t : self->sub_topics_)
+    for(const auto &t : self->topics_)
     {
         mosquitto_subscribe(mosq, NULL, t.c_str(), 1);
+        std::println("topic:{}", t);
     }
     std::println("connected & subscribed");
 }
 
 void mqtt_process::on_message(struct mosquitto *mosq, void *obj,
-                       const struct mosquitto_message *msg) {
+                              const struct mosquitto_message *msg)
+{
     (void)mosq;
     auto *self = static_cast<mqtt_process *>(obj);
-    self->g_queue.push(std::string(static_cast<char *>(msg->payload), msg->payloadlen));
-}
+    if(msg == nullptr || msg->topic == nullptr || msg->payloadlen < 0 ||
+       (msg->payloadlen > 0 && msg->payload == nullptr))
+    {
+        return;
+    }
 
+    // 网络回调只复制并入队，解析和数据库操作留给唯一的消费者线程。
+    mqtt_packet packet;
+    packet.topic = msg->topic;
+    if(msg->payloadlen > 0)
+    {
+        packet.payload.assign(static_cast<const char *>(msg->payload), msg->payloadlen);
+    }
+    self->get_queue().push(std::move(packet));
+}
 
 int mqtt_process::init(const std::string &name)
 {
@@ -51,27 +66,31 @@ int mqtt_process::init(const std::string &name)
     return 0;
 }
 
-int mqtt_process::connect(const std::string &ip, const int port)
+int mqtt_process::connect(const std::string &ip, const int port, std::string mqtt_username, std::string mqtt_userpassword)
 {
+    mosquitto_username_pw_set(mosq, mqtt_username.c_str(), mqtt_userpassword.c_str());
     int rc = mosquitto_connect(mosq, ip.c_str(), port, 60);
     if(rc != MOSQ_ERR_SUCCESS)
     {
         std::println(stderr, "connect fail: {}", mosquitto_strerror(rc));
-        this->exit();
         return -1;
     }
     is_connect = true;
     return 0;
 }
 
-int mqtt_process::subscribe(const std::string &topic)
+int mqtt_process::subscribe(const topics_vec &topics)
 {
     if(mosq)
     {
-        auto ret = mosquitto_subscribe(mosq, NULL, topic.c_str(), 1);
-        if(ret != MOSQ_ERR_SUCCESS)
+        topics_ = topics;
+        for(auto topic : topics)
         {
-            return -1;
+            auto ret = mosquitto_subscribe(mosq, NULL, topic.c_str(), 1);
+            if(ret != MOSQ_ERR_SUCCESS)
+            {
+                return -1;
+            }
         }
     }
     else
@@ -87,6 +106,7 @@ int mqtt_process::publish(const std::string &topic, const std::string &payload)
     if(mosq)
     {
         auto ret = mosquitto_publish(mosq, NULL, topic.c_str(), static_cast<int>(payload.size()), payload.c_str(), 1, false);
+        std::println("publish:{}, payload:{}", topic, payload);
         if(ret != MOSQ_ERR_SUCCESS)
         {
             return -1;
@@ -115,7 +135,7 @@ void mqtt_process::recv(void)
 
 int mqtt_process::change_cb(on_con_t new_on_connect, on_msg_t new_on_message)
 {
-    if(!mosq && is_connect == false)
+    if(!mosq && (is_connect == false))
     {
         mosquitto_connect_callback_set(mosq, new_on_connect);
         mosquitto_message_callback_set(mosq, new_on_message);
@@ -130,7 +150,13 @@ int mqtt_process::change_cb(on_con_t new_on_connect, on_msg_t new_on_message)
 
 int mqtt_process::exit(void)
 {
-    mosquitto_destroy(mosq);
+    if(mosq != nullptr)
+    {
+        mosquitto_destroy(mosq);
+        mosq = nullptr;
+    }
+    is_connect = false;
+    mosq = nullptr;
     if(init_cnt == 1)
     {
         mosquitto_lib_cleanup();

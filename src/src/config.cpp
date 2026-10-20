@@ -1,10 +1,10 @@
-#include "config.h"
-
 #include <fstream>
 #include <print>
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
+
+#include "config.h"
 
 int Config::load(const std::string &path)
 {
@@ -24,6 +24,8 @@ int Config::load(const std::string &path)
         room_id      = j.value("room_id",      room_id);
         topic_sensor = j.value("topic_sensor", topic_sensor);
         topic_cmd    = j.value("topic_cmd",    topic_cmd);
+        mqtt_username = j.value("mqtt_username", mqtt_username);
+        mqtt_userpassword = j.value("mqtt_userpassword", mqtt_userpassword);
     }
     catch (const json::exception &e)
     {
