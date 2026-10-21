@@ -1,6 +1,6 @@
 # 设备 JSON 处理
 
-当前实现位于 codex/device-json-processing 分支，沿用 example.json 的外层格式。
+当前实现位于 main 分支；公共报文约定见 [device_message.md](device_message.md)，与 ESP32 一致。
 
 ```json
 {
@@ -37,8 +37,9 @@ device_id 表示设备身份，不再使用它作为不同 JSON 格式的 switch
 
 ## 校验规则
 
+- 外层只包含 version、device_id、data；公共字段由 device_message.cpp 统一校验。
 - version 必须为字符串 0.0.1，未知版本明确拒绝。
-- device_id 支持正整数或 1～64 字节的字符串，数据库统一保存为文本。数字 1 与字符串 "1" 表示同一个 ID。
+- device_id 支持 1～9007199254740991 的正整数或 1～64 字节的字符串，数据库统一保存为文本。数字 1 与字符串 "1" 表示同一个 ID。
 - data 必须是非空对象，最多 64 个属性；属性名最多 64 字节，不包含控制字符。
 - data_handlers.cpp 为每个已知字段准备独立处理函数，有上报才调用，没有则跳过。
 - temperature/temp、humidity/humi、light/brightness、pressure、noise、battery、voltage、current、power、energy 为数值处理项。
@@ -91,7 +92,7 @@ python3 tools/device_json_check.py
 
 ## 新增处理函数
 
-在 src/src/data_handlers.cpp 中写一个 handle_xxx()，函数接收字段 JSON，校验并填写 device_value。然后在 handlers 表增加：
+在 src/data_handlers.cpp 中写一个 handle_xxx()，函数接收字段 JSON，校验并填写 device_value。然后在 handlers 表增加：
 
     {"xxx", handle_xxx},
 

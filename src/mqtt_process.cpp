@@ -43,6 +43,8 @@ void mqtt_process::on_message(struct mosquitto *mosq, void *obj,
     {
         packet.payload.assign(static_cast<const char *>(msg->payload), msg->payloadlen);
     }
+    // 先记录原始正文，再转移到消费者队列；std::string 按实际长度打印。
+    std::println("RX topic={} payload={}", packet.topic, packet.payload);
     self->get_queue().push(std::move(packet));
 }
 
@@ -106,11 +108,15 @@ int mqtt_process::publish(const std::string &topic, const std::string &payload)
     if(mosq)
     {
         auto ret = mosquitto_publish(mosq, NULL, topic.c_str(), static_cast<int>(payload.size()), payload.c_str(), 1, false);
-        std::println("publish:{}, payload:{}", topic, payload);
         if(ret != MOSQ_ERR_SUCCESS)
         {
+            std::println(stderr, "TX failed topic={} payload={} reason={}",
+                         topic, payload, mosquitto_strerror(ret));
             return -1;
         }
+
+        // 发布调用成功后记录，避免把失败的发送打印为成功。
+        std::println("TX topic={} payload={}", topic, payload);
     }
     else
     {

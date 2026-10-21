@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix="device-json-check-") as directory:
     master, slave = pty.openpty()
     log = temp / "output.log"
     with log.open("w") as output:
-        process = subprocess.Popen(["stdbuf", "-oL", "-eL", str(root / "build/prj")],
+        process = subprocess.Popen(["stdbuf", "-oL", "-eL", str(root / "build/home-gateway-orangepi")],
                                    cwd=temp / "build", stdin=slave,
                                    stdout=output, stderr=subprocess.STDOUT)
     os.close(slave)
@@ -74,6 +74,9 @@ with tempfile.TemporaryDirectory(prefix="device-json-check-") as directory:
 
         invalid = [
             "{",
+            {"version": "0.0.1", "device_id": 1, "data": {"led": 1}, "led": 1},
+            {"version": "0.0.1", "device_id": 1.5, "data": {"led": 1}},
+            {"version": "0.0.1", "device_id": 9007199254740992, "data": {"led": 1}},
             {"version": "1.0", "device_id": 1, "data": {"temperature": 1}},
             {"version": "0.0.1", "device_id": 1, "data": "not an object"},
             {"version": "0.0.1", "device_id": 0, "data": {"temperature": 1}},

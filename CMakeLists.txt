@@ -1,19 +1,31 @@
-cmake_minimum_required(VERSION 4.00)
+cmake_minimum_required(VERSION 3.22)
 
-project(prj)
-enable_language(C CXX)
+project(home-gateway-orangepi LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(${CMAKE_PROJECT_NAME})
+set(src
+    src/main.cpp
+    src/config.cpp
+    src/mqtt_process.cpp
+    src/device_message.cpp
+    src/data_handlers.cpp
+    src/handle_data.cpp
+    src/sqlite_resp.cpp)
 
-set(src src/main.cpp src/src/sqlite_resp.cpp src/src/mqtt_process.cpp src/src/config.cpp src/src/handle_data.cpp src/src/data_handlers.cpp)
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${src})
+find_package(Threads REQUIRED)
+find_package(nlohmann_json REQUIRED)
+find_package(SQLite3 REQUIRED)
+find_library(MOSQUITTO_LIBRARY NAMES mosquitto REQUIRED)
 
-target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC src/inc)
+add_executable(${PROJECT_NAME} ${src})
 
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE mosquitto sqlite3)
+target_include_directories(${PROJECT_NAME} PRIVATE include)
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${MOSQUITTO_LIBRARY}
+    SQLite::SQLite3
+    nlohmann_json::nlohmann_json
+    Threads::Threads)

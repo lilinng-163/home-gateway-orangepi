@@ -1,5 +1,6 @@
 #include "handle_data.h"
 #include "data_handlers.h"
+#include "device_message.h"
 
 #include <ctime>
 #include <print>
@@ -14,22 +15,6 @@
 #include "sqlite_resp.h"
 
 using json = nlohmann::json;
-
-static bool valid_name(const std::string &name)
-{
-    if(name.empty() || name.size() > 64)
-    {
-        return false;
-    }
-    for(unsigned char c : name)
-    {
-        if(c < 32 || c == 127)
-        {
-            return false;
-        }
-    }
-    return true;
-}
 
 bool parse_device_report(const mqtt_packet &packet, device_report &report, std::string &error)
 {
@@ -54,45 +39,13 @@ bool parse_device_report(const mqtt_packet &packet, device_report &report, std::
             return true;
         };
         json root = json::parse(packet.payload, limit_depth);
-        if(!root.is_object() || !root.contains("version") || !root["version"].is_string() ||
-           !root.contains("device_id") || !root.contains("data") || !root["data"].is_object())
-        {
-            error = "require version string, device_id and data object";
-            return false;
-        }
-        if(root["version"] != "0.0.1")
-        {
-            error = "unsupported version; expected 0.0.1";
-            return false;
-        }
-
-        // 兼容示例的正整数 ID，也支持 sensor_01 一类字符串 ID，数据库统一存文本。
-        const json &id = root["device_id"];
         std::string device_id;
-        if(id.is_string())
+        if(!read_device_message(root, device_id, error))
         {
-            device_id = id.get<std::string>();
-        }
-        else if(id.is_number_unsigned() && id.get<unsigned long long>() > 0)
-        {
-            device_id = std::to_string(id.get<unsigned long long>());
-        }
-        else if(id.is_number_integer() && id.get<long long>() > 0)
-        {
-            device_id = std::to_string(id.get<long long>());
-        }
-        if(!valid_name(device_id))
-        {
-            error = "device_id must be a positive integer or a nonempty string of up to 64 bytes";
             return false;
         }
 
         const json &data = root["data"];
-        if(data.empty() || data.size() > 64)
-        {
-            error = "data must contain 1 to 64 properties";
-            return false;
-        }
         device_report parsed;
         parsed.version = root["version"].get<std::string>();
         parsed.device_id = std::move(device_id);
@@ -101,14 +54,6 @@ bool parse_device_report(const mqtt_packet &packet, device_report &report, std::
         parsed.received_at = static_cast<long long>(std::time(nullptr));
         parsed.values.reserve(data.size());
 
-        for(const auto &[field, value] : data.items())
-        {
-            if(!valid_name(field))
-            {
-                error = "property names must contain 1 to 64 bytes without control characters";
-                return false;
-            }
-        }
         // 只调用本次上报字段对应的处理函数，不为缺失字段创建默认值。
         if(!handle_data_fields(data, parsed.values, error))
         {

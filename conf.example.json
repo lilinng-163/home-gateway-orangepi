@@ -1,0 +1,10 @@
+{
+    "remote_ip": "mqtt.example.com",
+    "remote_port": 1883,
+    "client_id": "home-gateway-orangepi",
+    "room_id": 1,
+    "topic_sensor": "home/+/+/data",
+    "topic_cmd": "home/room1/device1/cmd",
+    "mqtt_username": "YOUR_MQTT_USERNAME",
+    "mqtt_userpassword": "YOUR_MQTT_PASSWORD"
+}

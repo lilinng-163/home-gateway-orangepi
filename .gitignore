@@ -37,3 +37,13 @@ prj
 
 # Logs
 *.log
+
+# 本地认证配置、部署笔记与备份
+/conf.json
+SETUP_NOTES.md
+DEEPSEEK.md
+AGENTS.md
+*.bak
+__pycache__/
+/build*/
+/home-gateway-orangepi
